@@ -109,7 +109,7 @@ contract Project is ParticipantManager {
     }
 
     modifier onlyClient() {
-        require(participants[msg.sender], "You aren't participant");
+        require(productOwner == msg.sender, "You aren't participant");
         _;
     }
 
@@ -119,6 +119,7 @@ contract Project is ParticipantManager {
 
     function createSprint(string name, uint reward) public onlyClient {
         require(address(this).balance >= reward, "Unsufficient funds");
+        require(sprints.length == 0 || sprints[sprints.length-1].finalized);
 
         Sprint memory newSprint = Sprint({
             name: name,
@@ -129,6 +130,11 @@ contract Project is ParticipantManager {
             reward: reward
             });
         sprints.push(newSprint);
+    }
+
+    function getShareValue(uint sprintIndex, address participant)
+    public view returns(uint) {
+        return sprints[sprintIndex].shares[participant];
     }
 
     // possible to set share only for last sprint
@@ -169,12 +175,18 @@ contract Project is ParticipantManager {
 
     function finalizeShareRequest(uint shareRequestIndex) public {
         ShareRequest storage shareRequest = shareRequests[shareRequestIndex];
-        require((shareRequest.approvalAmount / participantAmount) * 100 > 50);
         Sprint storage sprint = sprints[shareRequest.sprintIndex];
+
+        require(!sprint.started);
+        require(!shareRequest.finalized);
+        require((shareRequest.approvalAmount / participantAmount) * 100 > 50);
+
         for(uint i; i < shareRequest.shareHolders.length; i++) {
             sprint.shares[shareRequest.shareHolders[i]] =
             shareRequest.shares[i];
         }
+
+        shareRequest.finalized = true;
     }
 
     function getBalance() public view returns(uint) {
