@@ -1,103 +1,49 @@
 pragma solidity ^0.4.24;
 
-contract ParticipantManager {
-    mapping(address => bool) public participants;
-    uint public participantAmount;
-    ParticipantRequest[] public participantRequests;
+import "./ParticipantManagerInterface.sol";
+import "./ParticipantManager.sol";
 
-    constructor() public {
-        addParticipant(msg.sender);
-    }
-
-    enum ManageParticipantFunction {
-        addParticipant,
-        deleteParticipant
-    }
-
-    struct ParticipantRequest {
-        ManageParticipantFunction func;
-        address participantAddress;
-        uint approvalAmount;
-        bool complete;
-        mapping(address => bool) voted;
-    }
-
-    modifier onlyParticipant() {
-        require(participants[msg.sender], "You aren't participant");
-        _;
-    }
-
-    function addParticipant(address _participant) internal {
-        participants[_participant] = true;
-        participantAmount++;
-    }
-
-    function deleteParticipant(address _participant) internal {
-        participants[_participant] = false;
-        participantAmount--;
-    }
-
-    function createPrticipantRequest(ManageParticipantFunction func, address _address)
-    public onlyParticipant {
-        ParticipantRequest memory newRequest = ParticipantRequest({
-            func: func,
-            participantAddress: _address,
-            approvalAmount: 0,
-            complete: false
-            });
-        participantRequests.push(newRequest);
-    }
-
-    function executeParticipantRequest(uint index) public {
-        ParticipantRequest storage request = participantRequests[index];
-
-        require(!request.complete);
-        require((request.approvalAmount / participantAmount) * 100 > 50);
-
-        if(request.func == ManageParticipantFunction.addParticipant) {
-            addParticipant(request.participantAddress);
-        }
-        request.complete = true;
-    }
-
-    function approveParticipantRequest(uint index) public onlyParticipant {
-        ParticipantRequest storage request = participantRequests[index];
-
-        require(!request.voted[msg.sender]);
-
-        request.approvalAmount++;
-        request.voted[msg.sender] = true;
-    }
-}
-
-contract Project is ParticipantManager {
+contract Project {
 
     address public productOwner;
     Sprint[] public sprints;
     ShareRequest[] public shareRequests;
+    ParticipantManagerInterface participantManager;
 
-    constructor(address _productOwner) public {
-        productOwner = _productOwner;
+    mapping(address => uint) public balances;
+    mapping(address => uint) public blockedBalance;
+
+    function() payable public {
+        balances[msg.sender] += msg.value;
     }
 
-    function() payable public {  }
+    constructor(address participantManagerAddress) public {
+        participantManager = ParticipantManagerInterface(participantManagerAddress);
+    }
 
     /// ---------------------------------------------
     /// ------------STRUCTS & MODIFIERS--------------
     /// ---------------------------------------------
 
-    struct Sprint {
-        string name;
-        uint createdAt;
-        bool customerApproved;
-        bool started;
-        bool finalized;
-        //shares in persantage 1-100% because in current version
-        // float type wasn't implemented
-        mapping(address => uint) shares;
-        uint reward;
-        address[] shareHolders;
+    modifier onlyParticipant() {
+        require(participantManager.participants(msg.sender), "You aren't participant");
+        _;
     }
+
+    modifier sufficientFunds(uint amount) {
+        require(balances[msg.sender] - blockedBalance[msg.sender] >= amount);
+        _;
+    }
+
+    modifier onlyLastSprintClient() {
+        Sprint storage sprint = sprints[sprints.length-1];
+        require(msg.sender == sprint.client);
+        _;
+    }
+
+    /// ---------------------------------------------
+    /// ---------------SHARE REQUESTS----------------
+    /// ---------------------------------------------
 
     //for every share holder it is his share with the same index
     struct ShareRequest {
@@ -107,37 +53,6 @@ contract Project is ParticipantManager {
         mapping(address => bool) approved;
         uint approvalAmount;
         bool finalized;
-    }
-
-    modifier onlyClient() {
-        require(productOwner == msg.sender, "You aren't participant");
-        _;
-    }
-
-    /// ---------------------------------------------
-    /// -------------------PUBLIC--------------------
-    /// ---------------------------------------------
-
-    function createSprint(string name, uint reward) public onlyClient {
-        require(address(this).balance >= reward, "Unsufficient funds");
-        require(sprints.length == 0 || sprints[sprints.length-1].finalized);
-        address[] memory initArr;
-
-        Sprint memory newSprint = Sprint({
-            name: name,
-            createdAt: now,
-            started: false,
-            customerApproved: false,
-            finalized: false,
-            reward: reward,
-            shareHolders: initArr
-            });
-        sprints.push(newSprint);
-    }
-
-    function getShareValue(uint sprintIndex, address participant)
-    public view returns(uint) {
-        return sprints[sprintIndex].shares[participant];
     }
 
     // possible to set share only for last sprint
@@ -182,7 +97,7 @@ contract Project is ParticipantManager {
 
         require(!sprint.started);
         require(!shareRequest.finalized);
-        require((shareRequest.approvalAmount / participantAmount) * 100 > 50);
+        require((shareRequest.approvalAmount / participantManager.participantAmount()) * 100 > 50);
 
         for(uint i; i < shareRequest.shareHolders.length; i++) {
             sprint.shares[shareRequest.shareHolders[i]] =
@@ -192,7 +107,44 @@ contract Project is ParticipantManager {
         shareRequest.finalized = true;
     }
 
-    function startSprint() public onlyClient {
+
+    /// ---------------------------------------------
+    /// -------------------SPRINT--------------------
+    /// ---------------------------------------------
+
+    struct Sprint {
+        string name;
+        uint createdAt;
+        address client;
+        bool customerApproved;
+        bool started;
+        bool finalized;
+        //shares in persantage 1-100% because in current version
+        // float type wasn't implemented
+        mapping(address => uint) shares;
+        uint reward;
+        address[] shareHolders;
+    }
+
+    function createSprint(string name, uint reward) public
+    sufficientFunds(reward) {
+        require(sprints.length == 0 || sprints[sprints.length-1].finalized);
+        address[] memory initArr;
+
+        Sprint memory newSprint = Sprint({
+            name: name,
+            createdAt: now,
+            started: false,
+            customerApproved: false,
+            finalized: false,
+            reward: reward,
+            shareHolders: initArr,
+            client: msg.sender
+            });
+        sprints.push(newSprint);
+    }
+
+    function startSprint() public onlyLastSprintClient {
         Sprint storage lastSprint  = sprints[sprints.length-1];
         require(lastSprint.shareHolders.length > 0,
             "Team members haven't voted for shares yet");
@@ -215,9 +167,13 @@ contract Project is ParticipantManager {
             reward = (totalReward / 100) * share;
             recipient.transfer(reward);
         }
+        lastSprint.finalized = true;
+        address client = lastSprint.client;
+        blockedBalance[client] -= totalReward;
+        balances[client] -= totalReward;
     }
 
-    function approveLastSprint() public onlyClient {
+    function approveLastSprint() public onlyLastSprintClient {
         Sprint storage lastSprint  = sprints[sprints.length-1];
         require(!lastSprint.finalized);
         require(lastSprint.started);
@@ -225,14 +181,35 @@ contract Project is ParticipantManager {
         lastSprint.customerApproved = true;
     }
 
-    function deleteLastSprint() public onlyClient {
+    function deleteLastSprint() public onlyLastSprintClient {
         Sprint storage lastSprint  = sprints[sprints.length-1];
         require(!lastSprint.started);
         delete sprints[sprints.length-1];
         sprints.length--;
     }
 
+    function getShareValue(uint sprintIndex, address participant)
+    public view returns(uint) {
+        return sprints[sprintIndex].shares[participant];
+    }
+
+    /// ---------------------------------------------
+    /// --------------------ELSE---------------------
+    /// ---------------------------------------------
+
     function getBalance() public view returns(uint) {
         return address(this).balance;
     }
+
+    function withdraw(uint amount) public sufficientFunds(amount) {
+        msg.sender.transfer(amount);
+        address(balances[msg.sender]).transfer(amount);
+    }
+
+
+    uint public data;
+    function setData(uint _data) public onlyParticipant {
+        data = _data;
+    }
+
 }
