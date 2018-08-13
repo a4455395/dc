@@ -60,7 +60,7 @@ contract ParticipantManager {
         request.complete = true;
     }
 
-    function vote(uint index) public onlyParticipant {
+    function approveParticipantRequest(uint index) public onlyParticipant {
         ParticipantRequest storage request = participantRequests[index];
 
         require(!request.voted[msg.sender]);
@@ -96,6 +96,7 @@ contract Project is ParticipantManager {
         // float type wasn't implemented
         mapping(address => uint) shares;
         uint reward;
+        address[] shareHolders;
     }
 
     //for every share holder it is his share with the same index
@@ -120,6 +121,7 @@ contract Project is ParticipantManager {
     function createSprint(string name, uint reward) public onlyClient {
         require(address(this).balance >= reward, "Unsufficient funds");
         require(sprints.length == 0 || sprints[sprints.length-1].finalized);
+        address[] memory initArr;
 
         Sprint memory newSprint = Sprint({
             name: name,
@@ -127,7 +129,8 @@ contract Project is ParticipantManager {
             started: false,
             customerApproved: false,
             finalized: false,
-            reward: reward
+            reward: reward,
+            shareHolders: initArr
             });
         sprints.push(newSprint);
     }
@@ -185,8 +188,48 @@ contract Project is ParticipantManager {
             sprint.shares[shareRequest.shareHolders[i]] =
             shareRequest.shares[i];
         }
-
+        sprint.shareHolders = shareRequest.shareHolders;
         shareRequest.finalized = true;
+    }
+
+    function startSprint() public onlyClient {
+        Sprint storage lastSprint  = sprints[sprints.length-1];
+        require(lastSprint.shareHolders.length > 0,
+            "Team members haven't voted for shares yet");
+        require(!lastSprint.started);
+
+        lastSprint.started = true;
+    }
+
+    function finalizeSprint() public {
+        Sprint storage lastSprint  = sprints[sprints.length-1];
+        require(!lastSprint.finalized);
+        require(lastSprint.customerApproved);
+        uint share;
+        address recipient;
+        uint reward;
+        uint totalReward = lastSprint.reward;
+        for(uint i=0; i < lastSprint.shareHolders.length; i++) {
+            recipient = lastSprint.shareHolders[i];
+            share = lastSprint.shares[recipient];
+            reward = (totalReward / 100) * share;
+            recipient.transfer(reward);
+        }
+    }
+
+    function approveLastSprint() public onlyClient {
+        Sprint storage lastSprint  = sprints[sprints.length-1];
+        require(!lastSprint.finalized);
+        require(lastSprint.started);
+
+        lastSprint.customerApproved = true;
+    }
+
+    function deleteLastSprint() public onlyClient {
+        Sprint storage lastSprint  = sprints[sprints.length-1];
+        require(!lastSprint.started);
+        delete sprints[sprints.length-1];
+        sprints.length--;
     }
 
     function getBalance() public view returns(uint) {
