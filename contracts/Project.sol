@@ -1,14 +1,13 @@
 pragma solidity ^0.4.24;
 
-import "./ParticipantManagerInterface.sol";
-import "./ParticipantManager.sol";
+import "./IParticipantService.sol";
+import "./ParticipantService.sol";
 
 contract Project {
-
     address public productOwner;
     Sprint[] public sprints;
     ShareRequest[] public shareRequests;
-    ParticipantManagerInterface participantManager;
+    IParticipantService participantManager;
 
     mapping(address => uint) public balances;
     mapping(address => uint) public blockedBalance;
@@ -18,7 +17,7 @@ contract Project {
     }
 
     constructor(address participantManagerAddress) public {
-        participantManager = ParticipantManagerInterface(participantManagerAddress);
+        participantManager = IParticipantService(participantManagerAddress);
     }
 
     /// ---------------------------------------------
@@ -106,7 +105,6 @@ contract Project {
         sprint.shareHolders = shareRequest.shareHolders;
         shareRequest.finalized = true;
     }
-
 
     /// ---------------------------------------------
     /// -------------------SPRINT--------------------

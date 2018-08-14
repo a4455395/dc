@@ -1,21 +1,21 @@
 pragma solidity ^0.4.24;
 
-import "./ParticipantManagerInterface.sol";
+import "./IParticipantService.sol";
 
-contract ParticipantManager is ParticipantManagerInterface {
-    ParticipantRequest[] public participantRequests;
+contract ParticipantManager is IParticipantService {
+    Request[] public requests;
 
     constructor() public {
         addParticipant(msg.sender);
     }
 
-    enum ManageParticipantFunction {
+    enum FunctionEnum {
         addParticipant,
         deleteParticipant
     }
 
-    struct ParticipantRequest {
-        ManageParticipantFunction func;
+    struct Request {
+        FunctionEnum func;
         address participantAddress;
         uint approvalAmount;
         bool complete;
@@ -37,31 +37,31 @@ contract ParticipantManager is ParticipantManagerInterface {
         participantAmount--;
     }
 
-    function createPrticipantRequest(ManageParticipantFunction func, address _address)
+    function createRequest(FunctionEnum func, address _address)
     public onlyParticipant {
-        ParticipantRequest memory newRequest = ParticipantRequest({
+        Request memory newRequest = Request({
             func: func,
             participantAddress: _address,
             approvalAmount: 0,
             complete: false
             });
-        participantRequests.push(newRequest);
+        requests.push(newRequest);
     }
 
-    function executeParticipantRequest(uint index) public {
-        ParticipantRequest storage request = participantRequests[index];
+    function finalizeRequest(uint index) public {
+        Request storage request = requests[index];
 
         require(!request.complete);
         require((request.approvalAmount / participantAmount) * 100 > 50);
 
-        if(request.func == ManageParticipantFunction.addParticipant) {
+        if(request.func == FunctionEnum.addParticipant) {
             addParticipant(request.participantAddress);
         }
         request.complete = true;
     }
 
     function approveParticipantRequest(uint index) public onlyParticipant {
-        ParticipantRequest storage request = participantRequests[index];
+        Request storage request = requests[index];
 
         require(!request.voted[msg.sender]);
 

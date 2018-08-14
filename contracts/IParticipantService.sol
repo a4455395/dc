@@ -1,6 +1,6 @@
 pragma solidity ^0.4.24;
 
-contract ParticipantManagerInterface {
+contract IParticipantService {
     mapping(address => bool) public participants;
     uint public participantAmount;
 }
