@@ -62,12 +62,8 @@ contract Project {
     ) public onlyParticipant {
 
         require(sprintIndex < sprints.length);
+        require(!sprints[sprintIndex].started);
         require(shareHolders.length == shares.length);
-
-        if(sprints.length > 0) {
-            require(sprints[sprints.length-1].finalized,
-                "Last sprint is not finalized yet");
-        }
 
         uint totalShare;
         uint i;
