@@ -64,6 +64,11 @@ contract Project {
         require(sprintIndex < sprints.length);
         require(shareHolders.length == shares.length);
 
+        if(sprints.length > 0) {
+            require(sprints[sprints.length-1].finalized,
+                "Last sprint is not finalized yet");
+        }
+
         uint totalShare;
         uint i;
         for(i = 0; i< shares.length; i++) {
