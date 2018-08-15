@@ -1,12 +1,83 @@
 pragma solidity ^0.4.24;
 
-import "./IParticipantService.sol";
-import "./ParticipantService.sol";
+contract IParticipantService {
+    mapping(address => bool) public participants;
+    uint public participantAmount;
+}
+
+contract ParticipantService is IParticipantService {
+    Request[] public requests;
+
+    constructor() public {
+        addParticipant(msg.sender);
+    }
+
+    enum FunctionEnum {
+        addParticipant,
+        deleteParticipant
+    }
+
+    struct Request {
+        FunctionEnum func;
+        address participantAddress;
+        uint approvalAmount;
+        bool complete;
+        mapping(address => bool) voted;
+    }
+
+    modifier onlyParticipant() {
+        require(participants[msg.sender], "You aren't participant");
+        _;
+    }
+
+    function addParticipant(address _participant) internal {
+        participants[_participant] = true;
+        participantAmount++;
+    }
+
+    function deleteParticipant(address _participant) internal {
+        participants[_participant] = false;
+        participantAmount--;
+    }
+
+    function createRequest(FunctionEnum func, address _address)
+    public onlyParticipant {
+        Request memory newRequest = Request({
+            func : func,
+            participantAddress : _address,
+            approvalAmount : 0,
+            complete : false
+            });
+        requests.push(newRequest);
+    }
+
+    function finalizeRequest(uint index) public {
+        Request storage request = requests[index];
+
+        require(!request.complete);
+        require((request.approvalAmount / participantAmount) * 100 > 50);
+
+        if (request.func == FunctionEnum.addParticipant) {
+            addParticipant(request.participantAddress);
+        }
+        request.complete = true;
+    }
+
+    function approveRequest(uint index) public onlyParticipant {
+        Request storage request = requests[index];
+
+        require(!request.voted[msg.sender]);
+
+        request.approvalAmount++;
+        request.voted[msg.sender] = true;
+    }
+}
 
 contract Project {
+    address public productOwner;
     Sprint[] public sprints;
     ShareRequest[] public shareRequests;
-    IParticipantService participantService;
+    IParticipantService public participantService;
 
     mapping(address => uint) public balances;
     mapping(address => uint) public blockedBalance;
@@ -34,7 +105,7 @@ contract Project {
     }
 
     modifier onlyLastSprintClient() {
-        Sprint storage sprint = sprints[sprints.length-1];
+        Sprint storage sprint = sprints[sprints.length - 1];
         require(msg.sender == sprint.client);
         _;
     }
@@ -66,17 +137,17 @@ contract Project {
 
         uint totalShare;
         uint i;
-        for(i = 0; i< shares.length; i++) {
-            totalShare+=shares[i];
+        for (i = 0; i < shares.length; i++) {
+            totalShare += shares[i];
         }
         require(totalShare <= 100);
 
         ShareRequest memory newRequest = ShareRequest({
-            sprintIndex: sprintIndex,
-            approvalAmount: 0,
-            finalized: false,
-            shareHolders: shareHolders,
-            shares: shares
+            sprintIndex : sprintIndex,
+            approvalAmount : 0,
+            finalized : false,
+            shareHolders : shareHolders,
+            shares : shares
             });
         shareRequests.push(newRequest);
     }
@@ -98,7 +169,7 @@ contract Project {
         require(!shareRequest.finalized);
         require((shareRequest.approvalAmount / participantService.participantAmount()) * 100 > 50);
 
-        for(uint i; i < shareRequest.shareHolders.length; i++) {
+        for (uint i; i < shareRequest.shareHolders.length; i++) {
             sprint.shares[shareRequest.shareHolders[i]] =
             shareRequest.shares[i];
         }
@@ -126,24 +197,24 @@ contract Project {
 
     function createSprint(string name, uint reward) public
     sufficientFunds(reward) {
-        require(sprints.length == 0 || sprints[sprints.length-1].finalized);
+        require(sprints.length == 0 || sprints[sprints.length - 1].finalized);
         address[] memory initArr;
 
         Sprint memory newSprint = Sprint({
-            name: name,
-            createdAt: now,
-            started: false,
-            customerApproved: false,
-            finalized: false,
-            reward: reward,
-            shareHolders: initArr,
-            client: msg.sender
+            name : name,
+            createdAt : now,
+            started : false,
+            customerApproved : false,
+            finalized : false,
+            reward : reward,
+            shareHolders : initArr,
+            client : msg.sender
             });
         sprints.push(newSprint);
     }
 
-    function startSprint() public onlyLastSprintClient sufficientFunds(sprints[sprints.length-1].reward) {
-        Sprint storage lastSprint  = sprints[sprints.length-1];
+    function startSprint() public onlyLastSprintClient sufficientFunds(sprints[sprints.length - 1].reward) {
+        Sprint storage lastSprint = sprints[sprints.length - 1];
         require(lastSprint.shareHolders.length > 0,
             "Team members haven't voted for shares yet");
         require(!lastSprint.started);
@@ -153,14 +224,14 @@ contract Project {
     }
 
     function finalizeSprint() public {
-        Sprint storage lastSprint  = sprints[sprints.length-1];
+        Sprint storage lastSprint = sprints[sprints.length - 1];
         require(!lastSprint.finalized);
         require(lastSprint.customerApproved);
         uint share;
         address recipient;
         uint reward;
         uint totalReward = lastSprint.reward;
-        for(uint i=0; i < lastSprint.shareHolders.length; i++) {
+        for (uint i = 0; i < lastSprint.shareHolders.length; i++) {
             recipient = lastSprint.shareHolders[i];
             share = lastSprint.shares[recipient];
             reward = (totalReward / 100) * share;
@@ -173,7 +244,7 @@ contract Project {
     }
 
     function approveLastSprint() public onlyLastSprintClient {
-        Sprint storage lastSprint  = sprints[sprints.length-1];
+        Sprint storage lastSprint = sprints[sprints.length - 1];
         require(!lastSprint.finalized);
         require(lastSprint.started);
 
@@ -181,14 +252,14 @@ contract Project {
     }
 
     function deleteLastSprint() public onlyLastSprintClient {
-        Sprint storage lastSprint  = sprints[sprints.length-1];
+        Sprint storage lastSprint = sprints[sprints.length - 1];
         require(!lastSprint.started);
-        delete sprints[sprints.length-1];
+        delete sprints[sprints.length - 1];
         sprints.length--;
     }
 
     function getShareValue(uint sprintIndex, address participant)
-    public view returns(uint) {
+    public view returns (uint) {
         return sprints[sprintIndex].shares[participant];
     }
 
@@ -196,7 +267,7 @@ contract Project {
     /// --------------------ELSE---------------------
     /// ---------------------------------------------
 
-    function getBalance() public view returns(uint) {
+    function getBalance() public view returns (uint) {
         return address(this).balance;
     }
 
