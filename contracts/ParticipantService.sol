@@ -2,7 +2,7 @@ pragma solidity ^0.4.24;
 
 import "./IParticipantService.sol";
 
-contract ParticipantManager is IParticipantService {
+contract ParticipantService is IParticipantService {
     Request[] public requests;
 
     constructor() public {

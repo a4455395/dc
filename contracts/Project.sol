@@ -7,7 +7,7 @@ contract Project {
     address public productOwner;
     Sprint[] public sprints;
     ShareRequest[] public shareRequests;
-    IParticipantService participantManager;
+    IParticipantService participantService;
 
     mapping(address => uint) public balances;
     mapping(address => uint) public blockedBalance;
@@ -16,8 +16,8 @@ contract Project {
         balances[msg.sender] += msg.value;
     }
 
-    constructor(address participantManagerAddress) public {
-        participantManager = IParticipantService(participantManagerAddress);
+    constructor(address participantServiceAddress) public {
+        participantService = IParticipantService(participantServiceAddress);
     }
 
     /// ---------------------------------------------
@@ -25,7 +25,7 @@ contract Project {
     /// ---------------------------------------------
 
     modifier onlyParticipant() {
-        require(participantManager.participants(msg.sender), "You aren't participant");
+        require(participantService.participants(msg.sender), "You aren't participant");
         _;
     }
 
@@ -96,7 +96,7 @@ contract Project {
 
         require(!sprint.started);
         require(!shareRequest.finalized);
-        require((shareRequest.approvalAmount / participantManager.participantAmount()) * 100 > 50);
+        require((shareRequest.approvalAmount / participantService.participantAmount()) * 100 > 50);
 
         for(uint i; i < shareRequest.shareHolders.length; i++) {
             sprint.shares[shareRequest.shareHolders[i]] =
@@ -142,13 +142,14 @@ contract Project {
         sprints.push(newSprint);
     }
 
-    function startSprint() public onlyLastSprintClient {
+    function startSprint() public onlyLastSprintClient sufficientFunds(sprints[sprints.length-1].reward) {
         Sprint storage lastSprint  = sprints[sprints.length-1];
         require(lastSprint.shareHolders.length > 0,
             "Team members haven't voted for shares yet");
         require(!lastSprint.started);
 
         lastSprint.started = true;
+        blockedBalance[lastSprint.client] += lastSprint.reward;
     }
 
     function finalizeSprint() public {
@@ -203,11 +204,4 @@ contract Project {
         msg.sender.transfer(amount);
         address(balances[msg.sender]).transfer(amount);
     }
-
-
-    uint public data;
-    function setData(uint _data) public onlyParticipant {
-        data = _data;
-    }
-
 }
