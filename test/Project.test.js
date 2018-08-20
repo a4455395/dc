@@ -30,6 +30,12 @@ const add2Participants = async participantService => {
     await  addParticipant(participantService, accounts.slice(0,2), accounts[2]);
 };
 
+const createSprint = async (client, reward) => {
+    await project.methods
+        .createSprint('First sprint', reward)
+        .send({from: client, gas: '3000000'});
+};
+
 beforeEach(async () => {
     // Get a list of all accounts
     accounts = await web3.eth.getAccounts();
@@ -48,7 +54,7 @@ beforeEach(async () => {
 
 });
 
-describe('Project', () => {
+describe('Deployment check', () => {
 
     it('contracts deployed successfully', async () => {
         const pSAdress = await project.methods.participantService().call();
@@ -63,6 +69,56 @@ describe('Project', () => {
     // });
 
 });
+
+let client;
+describe('Balances', () => {
+    beforeEach(async () => {
+        client = accounts[3];
+        await web3.eth.sendTransaction({
+            from: client,
+            to: project.options.address,
+            value: web3.utils.toWei('11', 'ether')
+        });
+    });
+
+    it('contract should have balance', async () => {
+        const balance = await project.methods.getBalance().call();
+        assert.equal(balance, web3.utils.toWei('11', 'ether'));
+    });
+
+    it('client should have balance', async () => {
+        const balance = await project.methods.balances(client).call();
+        assert.equal(balance, web3.utils.toWei('11', 'ether'));
+    });
+
+    it('client should can creating sprint with sufficient funds', async () => {
+        const reward =  web3.utils.toWei('11', 'ether');
+        await createSprint(client, reward);
+
+        const sprint = await project.methods.sprints(0).call();
+        assert.equal(sprint.name, 'First sprint');
+        assert.equal(sprint.reward, reward);
+    });
+
+    it('should fail while while creating sprint with insufficient funds', async () => {
+        try {
+            const reward =  web3.utils.toWei('12', 'ether');
+            await createSprint(client, reward);
+            assert(false);
+        } catch (e) {
+            assert(true);
+        }
+    });
+});
+
+describe('Sprint', () => {
+    beforeEach(async () => {
+        client = accounts[3];
+        const reward =  web3.utils.toWei('11', 'ether');
+        await createSprint(client, reward);
+    });
+});
+
 
 // describe('Basic mediator functionality', () => {
 //
