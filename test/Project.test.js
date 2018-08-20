@@ -111,14 +111,46 @@ describe('Balances', () => {
     });
 });
 
+const approveShareRequest = async (index, address) => {
+    await project.methods.approveShareRequest(index)
+        .send({from: address, gas: '300000'});
+};
+
 describe('Sprint', () => {
     beforeEach(async () => {
         client = accounts[3];
+        await web3.eth.sendTransaction({
+            from: client,
+            to: project.options.address,
+            value: web3.utils.toWei('11', 'ether')
+        });
         const reward =  web3.utils.toWei('11', 'ether');
         await createSprint(client, reward);
     });
-});
 
+    it('participant should can create valid shareRequest', async () => {
+        await project.methods
+            .createShareRequest(0, accounts.slice(0,3), [10,10,80])
+            .send({from: accounts[0], gas: '3000000'});
+
+        const shares = await project.methods.getShareRequestShares(0).call();
+        const shareHolders = await project.methods.getShareRequestAddresses(0).call();
+        assert.equal(shareHolders[0], accounts[0]);
+        assert.equal(shares[0], 10);
+    });
+
+    it('participant should can approve share request', async () => {
+        await project.methods
+            .createShareRequest(0, accounts.slice(0,3), [10,10,80])
+            .send({from: accounts[0], gas: '3000000'});
+
+        await approveShareRequest(0, accounts[0]);
+        await approveShareRequest(0, accounts[1]);
+
+        const shareRequest = await project.methods.shareRequests(0).call();
+        assert.equal(2, shareRequest.approvalAmount);
+    })
+});
 
 // describe('Basic mediator functionality', () => {
 //

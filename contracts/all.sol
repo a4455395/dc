@@ -177,6 +177,16 @@ contract Project {
         shareRequest.finalized = true;
     }
 
+    function getShareRequestShares(uint shareRequestIndex)
+    public view returns (uint[]) {
+        return shareRequests[shareRequestIndex].shares;
+    }
+
+    function getShareRequestAddresses(uint shareRequestIndex)
+    public view returns (address[]) {
+        return shareRequests[shareRequestIndex].shareHolders;
+    }
+
     /// ---------------------------------------------
     /// -------------------SPRINT--------------------
     /// ---------------------------------------------
@@ -258,7 +268,7 @@ contract Project {
         sprints.length--;
     }
 
-    function getShareValue(uint sprintIndex, address participant)
+    function getSprintShare(uint sprintIndex, address participant)
     public view returns (uint) {
         return sprints[sprintIndex].shares[participant];
     }
