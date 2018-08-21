@@ -174,13 +174,13 @@ describe('Sprints', () => {
 
         const resBalanceAccount2 = await web3.eth.getBalance(accounts[2]);
 
-        let participantBalances = [
-            await web3.eth.getBalance(accounts[0]),
-            await web3.eth.getBalance(accounts[1]),
-            await web3.eth.getBalance(accounts[2])
-        ];
+        const pendings = accounts.slice(0,3)
+            .map(async account => {
+                const inWei =  await web3.eth.getBalance(account);
+                return web3.utils.fromWei(inWei, 'ether')
+            });
 
-        participantBalances = participantBalances.map(b => web3.utils.fromWei(b, 'ether'));
+        const participantBalances = await Promise.all(pendings);
         console.log(participantBalances);
 
         assert.ok(resBalanceAccount2 - initBalanceAccount2 === +rewardInWei * 0.8);
