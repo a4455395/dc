@@ -149,7 +149,26 @@ describe('Sprint', () => {
 
         const shareRequest = await project.methods.shareRequests(0).call();
         assert.equal(2, shareRequest.approvalAmount);
-    })
+    });
+
+    it('should can fanalize share request', async () => {
+        await project.methods
+            .createShareRequest(0, accounts.slice(0,3), [10,10,80])
+            .send({from: accounts[0], gas: '3000000'});
+
+        await approveShareRequest(0, accounts[0]);
+        await approveShareRequest(0, accounts[1]);
+
+        await project.methods.finalizeShareRequest(0)
+            .send({from: accounts[0], gas: '3000000'});
+
+        const share = await project.methods.getSprintShare(0, accounts[2]).call();
+        assert.equal(share, 80);
+    });
+
+    it('client should can start sprint', async () => {
+
+    });
 });
 
 // describe('Basic mediator functionality', () => {

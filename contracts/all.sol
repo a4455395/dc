@@ -55,7 +55,7 @@ contract ParticipantService is IParticipantService {
         Request storage request = requests[index];
 
         require(!request.complete);
-        require((request.approvalAmount / participantAmount) * 100 > 50);
+        require((uint(request.approvalAmount * 100) / participantAmount) > 50);
 
         if (request.func == FunctionEnum.addParticipant) {
             addParticipant(request.participantAddress);
@@ -167,7 +167,7 @@ contract Project {
 
         require(!sprint.started);
         require(!shareRequest.finalized);
-        require((shareRequest.approvalAmount / participantService.participantAmount()) * 100 > 50);
+        require(uint(shareRequest.approvalAmount * 100) / participantService.participantAmount() > 50);
 
         for (uint i; i < shareRequest.shareHolders.length; i++) {
             sprint.shares[shareRequest.shareHolders[i]] =
