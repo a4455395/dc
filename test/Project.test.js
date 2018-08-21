@@ -1,12 +1,14 @@
 const assert = require('assert');
 const ganache = require('ganache-cli');
 const Web3 = require('web3');
-const web3 = new Web3(ganache.provider({gasLimit: 10000000}));
+const web3 = new Web3(ganache.provider({gasLimit: 100000000}));
 
 const {Project, ParticipantService} = require('../compile');
 
 let accounts;
 let participantService, project;
+let client;
+let rewardInWei = web3.utils.toWei('11', 'ether');
 
 const addParticipant = async (participantService, currentP, newP) => {
     await new web3.eth.Contract(JSON.parse(ParticipantService.interface))
@@ -52,6 +54,7 @@ beforeEach(async () => {
     //creating participants
     await add2Participants(participantService);
 
+    client = accounts[3];
 });
 
 describe('Deployment check', () => {
@@ -70,34 +73,31 @@ describe('Deployment check', () => {
 
 });
 
-let client;
 describe('Balances', () => {
     beforeEach(async () => {
-        client = accounts[3];
         await web3.eth.sendTransaction({
             from: client,
             to: project.options.address,
-            value: web3.utils.toWei('11', 'ether')
+            value: rewardInWei
         });
     });
 
     it('contract should have balance', async () => {
         const balance = await project.methods.getBalance().call();
-        assert.equal(balance, web3.utils.toWei('11', 'ether'));
+        assert.equal(balance, rewardInWei);
     });
 
     it('client should have balance', async () => {
         const balance = await project.methods.balances(client).call();
-        assert.equal(balance, web3.utils.toWei('11', 'ether'));
+        assert.equal(balance, rewardInWei);
     });
 
     it('client should can creating sprint with sufficient funds', async () => {
-        const reward =  web3.utils.toWei('11', 'ether');
-        await createSprint(client, reward);
+        await createSprint(client, rewardInWei);
 
         const sprint = await project.methods.sprints(0).call();
         assert.equal(sprint.name, 'First sprint');
-        assert.equal(sprint.reward, reward);
+        assert.equal(sprint.reward, rewardInWei);
     });
 
     it('should fail while while creating sprint with insufficient funds', async () => {
@@ -116,42 +116,15 @@ const approveShareRequest = async (index, address) => {
         .send({from: address, gas: '300000'});
 };
 
-describe('Sprint', () => {
+describe('Sprints', () => {
     beforeEach(async () => {
-        client = accounts[3];
         await web3.eth.sendTransaction({
             from: client,
             to: project.options.address,
-            value: web3.utils.toWei('11', 'ether')
+            value: rewardInWei
         });
-        const reward =  web3.utils.toWei('11', 'ether');
-        await createSprint(client, reward);
-    });
+        await createSprint(client, rewardInWei);
 
-    it('participant should can create valid shareRequest', async () => {
-        await project.methods
-            .createShareRequest(0, accounts.slice(0,3), [10,10,80])
-            .send({from: accounts[0], gas: '3000000'});
-
-        const shares = await project.methods.getShareRequestShares(0).call();
-        const shareHolders = await project.methods.getShareRequestAddresses(0).call();
-        assert.equal(shareHolders[0], accounts[0]);
-        assert.equal(shares[0], 10);
-    });
-
-    it('participant should can approve share request', async () => {
-        await project.methods
-            .createShareRequest(0, accounts.slice(0,3), [10,10,80])
-            .send({from: accounts[0], gas: '3000000'});
-
-        await approveShareRequest(0, accounts[0]);
-        await approveShareRequest(0, accounts[1]);
-
-        const shareRequest = await project.methods.shareRequests(0).call();
-        assert.equal(2, shareRequest.approvalAmount);
-    });
-
-    it('should can fanalize share request', async () => {
         await project.methods
             .createShareRequest(0, accounts.slice(0,3), [10,10,80])
             .send({from: accounts[0], gas: '3000000'});
@@ -161,33 +134,55 @@ describe('Sprint', () => {
 
         await project.methods.finalizeShareRequest(0)
             .send({from: accounts[0], gas: '3000000'});
-
-        const share = await project.methods.getSprintShare(0, accounts[2]).call();
-        assert.equal(share, 80);
     });
 
-    it('client should can start sprint', async () => {
+    it('client should be able to start sprint', async () => {
+        await project.methods
+            .startSprint()
+            .send({from: client, gas: '3000000'});
 
+        const sprint  = await project.methods.sprints(0).call();
+        assert.ok(sprint.started);
+    });
+
+    it('client should be able to approve sprint', async () => {
+        await project.methods
+            .startSprint()
+            .send({from: client, gas: '3000000'});
+
+        await project.methods
+            .approveLastSprint()
+            .send({from: client, gas: '3000000'});
+
+        const sprint  = await project.methods.sprints(0).call();
+        assert.ok(sprint.customerApproved);
+    });
+
+    it('should finalize sprint', async () => {
+        const initBalanceAccount2 = await web3.eth.getBalance(accounts[2]);
+        await project.methods
+            .startSprint()
+            .send({from: client, gas: '3000000'});
+
+        await project.methods
+            .approveLastSprint()
+            .send({from: client, gas: '3000000'});
+
+        await project.methods
+            .finalizeSprint()
+            .send({from: accounts[0], gas: '30000000'});
+
+        const resBalanceAccount2 = await web3.eth.getBalance(accounts[2]);
+
+        let participantBalances = [
+            await web3.eth.getBalance(accounts[0]),
+            await web3.eth.getBalance(accounts[1]),
+            await web3.eth.getBalance(accounts[2])
+        ];
+
+        participantBalances = participantBalances.map(b => web3.utils.fromWei(b, 'ether'));
+        console.log(participantBalances);
+
+        assert.ok(resBalanceAccount2 - initBalanceAccount2 === +rewardInWei * 0.8);
     });
 });
-
-// describe('Basic mediator functionality', () => {
-//
-//     it('contracts have deployed correctly', async () => {
-//         const xidAddress = await mediator.methods.xidAddress().call();
-//         assert.equal(xid.options.address, xidAddress);
-//     });
-//
-//     it('mediator contract should have correct balance of XID', async () => {
-//         const balance = await mediator.methods.myBalance().call();
-//         assert.equal(balance, replenishAmount);
-//     });
-//
-//     it('should create allowance for amount which not exceed mediator\s balance', async () => {
-//         const tokensSent = 10;
-//         await mediator.methods.approve(accounts[1], tokensSent)
-//             .send({from: accounts[0], gas: '1000000'});
-//         assert.equal(await mediator.methods.allowance(accounts[1]).call(), tokensSent);
-//     });
-//
-// });
