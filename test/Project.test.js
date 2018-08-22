@@ -63,52 +63,6 @@ describe('Deployment check', () => {
         const pSAdress = await project.methods.participantService().call();
         assert.equal(pSAdress, participantService.options.address);
     });
-
-    // it('should add participant', async () => {
-    //     const startAmount = await participantService.methods.participantAmount().call();
-    //     await  addParticipant(participantService, [accounts[0]], accounts[1]);
-    //     const endAmount = await participantService.methods.participantAmount().call();
-    //     assert.equal(+startAmount + 1, endAmount);
-    // });
-
-});
-
-describe('Balances', () => {
-    beforeEach(async () => {
-        await web3.eth.sendTransaction({
-            from: client,
-            to: project.options.address,
-            value: rewardInWei
-        });
-    });
-
-    it('contract should have balance', async () => {
-        const balance = await project.methods.getBalance().call();
-        assert.equal(balance, rewardInWei);
-    });
-
-    it('client should have balance', async () => {
-        const balance = await project.methods.balances(client).call();
-        assert.equal(balance, rewardInWei);
-    });
-
-    it('client should can creating sprint with sufficient funds', async () => {
-        await createSprint(client, rewardInWei);
-
-        const sprint = await project.methods.sprints(0).call();
-        assert.equal(sprint.name, 'First sprint');
-        assert.equal(sprint.reward, rewardInWei);
-    });
-
-    it('should fail while while creating sprint with insufficient funds', async () => {
-        try {
-            const reward =  web3.utils.toWei('12', 'ether');
-            await createSprint(client, reward);
-            assert(false);
-        } catch (e) {
-            assert(true);
-        }
-    });
 });
 
 const approveShareRequest = async (index, address) => {
