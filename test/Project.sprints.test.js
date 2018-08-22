@@ -92,7 +92,7 @@ describe('Sprints', () => {
 
     it('client should be able to start sprint', async () => {
         await project.methods
-            .startSprint()
+            .startSprint(0)
             .send({from: client, gas: '3000000'});
 
         const sprint  = await project.methods.sprints(0).call();
@@ -101,29 +101,29 @@ describe('Sprints', () => {
 
     it('client should be able to approve sprint', async () => {
         await project.methods
-            .startSprint()
+            .startSprint(0)
             .send({from: client, gas: '3000000'});
 
         await project.methods
-            .approveLastSprint()
+            .approveSprint(0)
             .send({from: client, gas: '3000000'});
 
         const sprint  = await project.methods.sprints(0).call();
-        assert.ok(sprint.customerApproved);
+        assert.ok(sprint.approved);
     });
 
     it('should finalize sprint', async () => {
         const initBalanceAccount2 = await web3.eth.getBalance(accounts[2]);
         await project.methods
-            .startSprint()
+            .startSprint(0)
             .send({from: client, gas: '3000000'});
 
         await project.methods
-            .approveLastSprint()
+            .approveSprint(0)
             .send({from: client, gas: '3000000'});
 
         await project.methods
-            .finalizeSprint()
+            .finalizeSprint(0)
             .send({from: accounts[0], gas: '30000000'});
 
         const resBalanceAccount2 = await web3.eth.getBalance(accounts[2]);

@@ -104,9 +104,8 @@ contract Project {
         _;
     }
 
-    modifier onlyLastSprintClient() {
-        Sprint storage sprint = sprints[sprints.length - 1];
-        require(msg.sender == sprint.client);
+    modifier onlySprintClient(uint sprintIndex) {
+        require(msg.sender == sprints[sprintIndex].client);
         _;
     }
 
@@ -195,7 +194,7 @@ contract Project {
         string name;
         uint createdAt;
         address client;
-        bool customerApproved;
+        bool approved;
         bool started;
         bool finalized;
         //shares in persantage 1-100% because in current version
@@ -205,16 +204,14 @@ contract Project {
         address[] shareHolders;
     }
 
-    function createSprint(string name, uint reward) public
-    sufficientFunds(reward) {
-        require(sprints.length == 0 || sprints[sprints.length - 1].finalized);
+    function createSprint(string name, uint reward) public sufficientFunds(reward) {
         address[] memory initArr;
 
         Sprint memory newSprint = Sprint({
             name : name,
             createdAt : now,
             started : false,
-            customerApproved : false,
+            approved : false,
             finalized : false,
             reward : reward,
             shareHolders : initArr,
@@ -223,45 +220,45 @@ contract Project {
         sprints.push(newSprint);
     }
 
-    function startSprint() public onlyLastSprintClient sufficientFunds(sprints[sprints.length - 1].reward) {
-        Sprint storage lastSprint = sprints[sprints.length - 1];
-        require(lastSprint.shareHolders.length > 0,
+    function startSprint(uint sprintIndex) public onlySprintClient(sprintIndex) sufficientFunds(sprints[sprintIndex].reward) {
+        Sprint storage sprint = sprints[sprintIndex];
+        require(sprint.shareHolders.length > 0,
             "Team members haven't voted for shares yet");
-        require(!lastSprint.started);
+        require(!sprint.started);
 
-        lastSprint.started = true;
-        blockedBalance[lastSprint.client] += lastSprint.reward;
+        sprint.started = true;
+        blockedBalance[sprint.client] += sprint.reward;
     }
 
-    function finalizeSprint() public {
-        Sprint storage lastSprint = sprints[sprints.length - 1];
-        require(!lastSprint.finalized);
-        require(lastSprint.customerApproved);
+    function finalizeSprint(uint sprintIndex) public {
+        Sprint storage sprint = sprints[sprintIndex];
+        require(!sprint.finalized);
+        require(sprint.approved);
         uint share;
         address recipient;
         uint reward;
-        uint totalReward = lastSprint.reward;
-        for (uint i = 0; i < lastSprint.shareHolders.length; i++) {
-            recipient = lastSprint.shareHolders[i];
-            share = lastSprint.shares[recipient];
+        uint totalReward = sprint.reward;
+        for (uint i = 0; i < sprint.shareHolders.length; i++) {
+            recipient = sprint.shareHolders[i];
+            share = sprint.shares[recipient];
             reward = (totalReward / 100) * share;
             recipient.transfer(reward);
         }
-        lastSprint.finalized = true;
-        address client = lastSprint.client;
+        sprint.finalized = true;
+        address client = sprint.client;
         blockedBalance[client] -= totalReward;
         balances[client] -= totalReward;
     }
 
-    function approveLastSprint() public onlyLastSprintClient {
-        Sprint storage lastSprint = sprints[sprints.length - 1];
-        require(!lastSprint.finalized);
-        require(lastSprint.started);
+    function approveSprint(uint sprintIndex) public onlySprintClient(sprintIndex) {
+        Sprint storage sprint = sprints[sprintIndex];
+        require(!sprint.finalized);
+        require(sprint.started);
 
-        lastSprint.customerApproved = true;
+        sprint.approved = true;
     }
 
-    function deleteLastSprint() public onlyLastSprintClient {
+    function deleteLastSprint() public onlySprintClient(sprints.length-1) {
         Sprint storage lastSprint = sprints[sprints.length - 1];
         require(!lastSprint.started);
         delete sprints[sprints.length - 1];
