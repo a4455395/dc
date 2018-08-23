@@ -281,5 +281,6 @@ contract Project {
     function withdraw(uint amount) public sufficientFunds(amount) {
         msg.sender.transfer(amount);
         address(balances[msg.sender]).transfer(amount);
+        balances[msg.sender] -= amount;
     }
 }
